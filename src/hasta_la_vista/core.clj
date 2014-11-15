@@ -28,6 +28,9 @@
 ;; Read config
 
 ;;https://github.com/l1x/shovel/blob/master/src/shovel/core.clj
+;;this is considered defensing programming, but it is intentional
+;;supplying an arbitrary bad input should not cause this function to 
+;;explode, in fact it should just return an error
 (defn read-file
   "Returns {:ok string } or {:error...}"
   [^String file]
@@ -40,8 +43,11 @@
   (catch Exception e
     {:error "Exception" :fn "read-file" :exception (.getMessage e) }))) ; catch all exceptions
 
-;Parsing a string to Clojure data structures the safe way
+;;Parsing a string to Clojure data structures the safe way
+;;aka what could possibly go wrong dealing with a random
+;;user controlled string
 (defn parse-edn-string
+  "Returns the Clojure data structure representation of s"
   [s]
   (try
     {:ok (clojure.edn/read-string s)}
@@ -50,7 +56,8 @@
 
 ;This function wraps the read-file and the parse-edn-string
 ;so that it only return {:ok ... } or {:error ...} 
-(defn read-config 
+(defn read-config
+  "Returns the Clojure data structure version of the config file"
   [file]
   (let 
     [ file-string (read-file file) ]
@@ -71,7 +78,9 @@
 
 ;; Connecting to CB
 
-(defn connect 
+(defn connect
+  "Returns a client that is connected to the Couchbase cluster
+   using multiple threads"
   [cb-client-config]
   (client/defclient client-connection cb-client-config))
 
@@ -102,6 +111,9 @@
 (defn -main 
   "
   This is the main entry point when you start up the JAR
+  parses the config, starts up the connections in each thread 
+  and starts to consume the view by 1000 item chunks
+  
   "
   [& args]
   (let [  chan    (chan 5) 
@@ -129,6 +141,10 @@
       (blocking-consumer
         (go
           (let [[result source] (alts! [chan (timeout 1500)])]
+            ;; if source is the channel than a value is returned in result
+            ;; when the source is something else like timeout, we time out
+            ;; and stop execution
+            ;; production timeout should be like 1-3 mins
             (if (= source chan)
               (println "Got a value!" result)
               ;else - timeout 
