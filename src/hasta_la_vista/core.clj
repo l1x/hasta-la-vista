@@ -109,11 +109,18 @@
   (exit 1))
 
 (defn -main 
-  "
-  This is the main entry point when you start up the JAR
+  "This is the main entry point when you start up the JAR
   parses the config, starts up the connections in each thread 
-  and starts to consume the view by 1000 item chunks
+  and starts to consume the view by large chunks. There is an assumption 
+  that CB returns the right set of keys and the view update works properly
   
+  There is a query parameter that can be passed: stale 
+  <quote>If stale=ok is set, Couchbase will not refresh the view even if it 
+  is stale. The benefit of this   is a an improved query latency. If stale=update_after is set, 
+  Couchbase will update the view after the stale result is returned. If stale=false is set, 
+  Couchbase will refresh the view and return you most updated results.<quote>
+
+  https://forums.couchbase.com/t/how-does-stale-query-work/870
   "
   [& args]
   (let [  chan    (chan 5) 
@@ -132,9 +139,35 @@
         ;; inside a thread we usually process something 
         ;; blocking like this thread sleeps for random(1000) ms
         ;; after the blocking part you send the message
-        (doseq [j (range 2)]
-          (Thread/sleep (rand-int 1000))
-          (blocking-producer chan (str "Thread id: " i " :: Counter " j)))))
+        ;; :couchbase-client might be missing - should catch it here
+        (let [  ^clojure.lang.PersistentHashMap   client-config         (get-in config [:ok :couchbase-client])
+                client                                                (connect client-config)
+                ^clojure.lang.PersistentArrayMap  view-config                                           (get-in config [:ok :couchbase-view])
+                ^java.lang.String                 design-document-name  (:design-document-name view-config)
+                ^java.lang.String                 view-name             (:view-name view-config)
+                ^clojure.lang.PersistentHashMap   query-options         (:query-options view-config)
+                ^java.lang.Long                   batch-size            (:batch-size view-config) ]
+          (println (type client))
+          ;; connecting might be slow
+          (Thread/sleep 100)
+          ;; should be a check here if connection was successful 
+          ;; (cond ...
+          ;; "Lazy query can be used to get the amount of documents specified per iteration. 
+          ;; Communication between the client and Couchbase server will only occur per iteration.
+          ;; This is typically used to get a large data lazily."
+          ;; Example query-options
+          ;; {:include-docs true :desc false :startkey-doc-id :doc1 :endkey-doc-id :doc2
+          ;;   :group true :group-level 1 :inclusive-end false :key :key1 :limit 100 :range [:start-key :end-key]
+          ;;   :range-start :start-key2 :range-end :end-key2 :reduce false :skip 1 :stale false:on-error :continue}
+          (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
+            (let [ids (map client/view-id r)]
+              ;; delete all the keys, using the same connection as 
+              ;; for the read
+              (doall (pmap #(client/delete client %) ids))
+              ;; blocking producer should have a timeout here
+              (blocking-producer chan (str "ID: " (first ids) " Batch size: " batch-size))))
+            ;after we are done
+            (client/shutdown client))))
     ;; read while there is value
     ;; or 
     (while true 
@@ -149,5 +182,4 @@
               (println "Got a value!" result)
               ;else - timeout 
               (exit 0))))))))
-
-
+;; END

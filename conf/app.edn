@@ -1,5 +1,8 @@
 {
-  :couchbase {
+  :hasta-la-vista {
+    :thread-count 15
+  }
+  :couchbase-client {
     :bucket "delete-me"
     :uris [
       "http://localhost:8091/pools"
@@ -14,6 +17,12 @@
     :read-buffer-size 32768
     :should-optimize true
     :timeout-exception-threshold 100000
+  }
+  :couchbase-view {
+    :design-document-name "dev_doc"
+    :view-name "view"
+    :query-options {:include-docs true :stale false}
+    :batch-size 100
   }
 }
 
