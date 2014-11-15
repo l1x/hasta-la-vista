@@ -14,10 +14,11 @@
 
 (ns hasta-la-vista.core
   (:require
-    [clojure.edn          :as edn     ]
-    [clojure.core.async   :as async   ]
-    [couchbase-clj.client :as client ]
-    [couchbase-clj.query  :as query   ])
+    [clojure.edn          :as edn                 ]
+    [clojure.core.async   :refer 
+      [alts! chan go thread timeout >! >!! <! <!!  ]]
+    [couchbase-clj.client :as client              ]
+    [couchbase-clj.query  :as query               ])
   (:import 
     [java.io File])
   (:gen-class))
@@ -58,6 +59,7 @@
         ;this return the {:ok} or {:error} from parse-edn-string
         (parse-edn-string (file-string :ok))
       :else
+        ;the read-file operation returned an error
         file-string)))
 
 (defn uuid
@@ -73,41 +75,63 @@
   [cb-client-config]
   (client/defclient client-connection cb-client-config))
 
-(defn exit [] 
-  (println "Timeout!")
-  (java.lang.System/exit 0))
+(defn exit [n] 
+  (println "init :: stop")
+  (java.lang.System/exit n))
 
 ;; Getting better names for the async functions
 
-(def blocking-producer async/>!!)
-(def blocking-consumer async/<!!)
+(def blocking-producer >!!)
+(def blocking-consumer <!!)
 
-(def non-blocking-producer async/>!)
-(def non-blocking-consumer async/<!)
+(def non-blocking-producer >!)
+(def non-blocking-consumer <!)
 
 
 (defn process-message [message] (println "Got a message!" message))
+
+(defn config-ok [config]
+  (println "config [ok]") 
+  (println config))
+
+(defn config-err [config]
+  (println "config [error]") 
+  (println config)
+  (exit 1))
 
 (defn -main 
   "
   This is the main entry point when you start up the JAR
   "
   [& args]
-  (let [chan (async/chan)]
-    ;;creating 10 async threads
+  (let [  chan    (chan 5) 
+          config  (read-config "conf/app.edn") ]
+    ;; INIT
+    (println "init :: start")
+    (println "checking config...")
+    (cond 
+      (contains? config :ok)
+        (config-ok config)
+      :else
+        (config-err config))
+    ;; creating 10 async threads
     (dotimes [i 10]
-      (async/thread
+      (thread
+        ;; inside a thread we usually process something 
+        ;; blocking like this thread sleeps for random(1000) ms
+        ;; after the blocking part you send the message
         (doseq [j (range 2)]
           (Thread/sleep (rand-int 1000))
           (blocking-producer chan (str "Thread id: " i " :: Counter " j)))))
-    ;;read 
+    ;; read while there is value
+    ;; or 
     (while true 
       (blocking-consumer
-        (async/go
-          (let [[result source] (async/alts! [chan (async/timeout 1500)])]
+        (go
+          (let [[result source] (alts! [chan (timeout 1500)])]
             (if (= source chan)
               (println "Got a value!" result)
               ;else - timeout 
-              (exit))))))))
+              (exit 0))))))))
 
 

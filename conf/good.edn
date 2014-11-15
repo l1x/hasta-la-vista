@@ -1,0 +1,19 @@
+{
+  :couchbase {
+    :bucket "delete-me"
+    :uris [
+      "http://localhost:8091/pools"
+      "http://localhost:8091/pools"
+     ]
+    :op-timeout 100000
+    :op-queue-max-block-time 30000
+    :failure-mode :redistribute
+    :max-reconnect-delay 30000
+    :obs-poll-interval 100
+    :obs-poll-max 400
+    :read-buffer-size 32768
+    :should-optimize true
+    :timeout-exception-threshold 100000
+  }
+}
+
