@@ -4,25 +4,69 @@ A Clojure library designed to wipe out subset of your data from Couchbase. If yo
 
 ## Usage
 
-Running the program is very easy, just start up the JAR (best is to use the uber jar) and the main() function is going to execute the delete on all of the items in a particular view. The name of the view and the connection details are read from the configuration file in the conf/ directory. At this stage only one view is supported. You need to create a view that has the IDs (cannot pass in a null as the id). I suggest you to create a view that has a warning in its name that the items listed are going to be deleted. 
+Running the program is very easy, just start up the JAR (best is to use the uber jar) and the 
+Main() function is going to execute the delete on all of the items in a particular view. The configuration file is 
+in the conf/ directory.The only tunable is the thread pool size (1-50) that is exposed right now in terms of 
+concurrency control. The name of the view and the connection details are read from the configuration file. At this stage 
+only one view is supported. You need to create a view that has the IDs (cannot pass in a null as the id). I suggest you to 
+create a view that has a warning in its name that the items in it are going to be deleted.
 
-Here is an example view that I use to create a view based on the environment that is sent to us and including only the documents (JSONs) that has something else than 'prod' in their key.
+### Create a view for deletion
+
+Here is an example to create a view based on the environment in the JSON. 
 
 ```JavaScript
 function (doc, meta) {
-  if(doc.type == 'Batch' && doc.header.env !='prod'){
+  if(doc.type == 'doc0' && doc.header.env !='prod'){
     emit(meta.id,doc.header.env)
   };
-  if(doc.type == 'Session' && doc.env !='prod'){
+  if(doc.type == 'doc1' && doc.env !='prod'){
     emit(meta.id,doc.env)
   };
   
 }
 ```
 
-The application configuration file that lives in the conf/ folder using the EDN notation. The configuration section is devided into few sections.
+### Configure hasta-la-vista
+
+        cat conf/app.edn
+
+```edn
+{
+  :hasta-la-vista {
+    :thread-count 15
+  }
+  :couchbase-client {
+    :bucket "default"
+    :uris [
+      "http://192.168.67.101:8091/pools"
+      "http://192.168.67.102:8091/pools"
+      "http://192.168.67.103:8091/pools"
+      "http://192.168.67.104:8091/pools"
+     ]
+    :op-timeout 100000
+    :op-queue-max-block-time 30000
+    :failure-mode :redistribute
+    :max-reconnect-delay 30000
+    :obs-poll-interval 100
+    :obs-poll-max 400
+    :read-buffer-size 32768
+    :should-optimize true
+    :timeout-exception-threshold 100000
+  }
+  :couchbase-view {
+    :design-document-name "delete_all"
+    :view-name "delete-all"
+    :query-options {:include-docs true :stale false}
+    :batch-size 100
+  }
+}
+```
+
+### Run the deletion
 
 
+        java -jar hasta-la-vista-0.1.0-standalone.jar
 
 ## License
 
