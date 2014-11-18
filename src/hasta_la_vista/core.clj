@@ -14,11 +14,12 @@
 
 (ns hasta-la-vista.core
   (:require
-    [clojure.edn          :as edn                 ]
-    [clojure.core.async   :refer 
-      [alts! chan go thread timeout >! >!! <! <!!  ]]
-    [couchbase-clj.client :as client              ]
-    [couchbase-clj.query  :as query               ])
+    [clojure.edn            :as edn                 ]
+    [clojure.core.async     :refer 
+      [alts! chan go thread timeout >! >!! <! <!!]  ]
+    [couchbase-clj.client   :as client              ]
+    [couchbase-clj.query    :as query               ]
+    [clojure.tools.logging  :as log                 ])
   (:import 
     [java.io File])
   (:gen-class))
@@ -82,10 +83,12 @@
   "Returns a client that is connected to the Couchbase cluster
    using multiple threads"
   [cb-client-config]
-  (client/defclient client-connection cb-client-config))
+  (client/defclient client-connection cb-client-config)
+  ;return
+  client-connection)
 
 (defn exit [n] 
-  (println "init :: stop")
+  (log/info "init :: stop")
   (java.lang.System/exit n))
 
 ;; Getting better names for the async functions
@@ -97,15 +100,15 @@
 (def non-blocking-consumer <!)
 
 
-(defn process-message [message] (println "Got a message!" message))
+(defn process-message [message] (log/info "Got a message!" message))
 
 (defn config-ok [config]
-  (println "config [ok]") 
-  (println config))
+  (log/info "config [ok]") 
+  (log/info config))
 
 (defn config-err [config]
-  (println "config [error]") 
-  (println config)
+  (log/error "config [error]") 
+  (log/error config)
   (exit 1))
 
 (defn -main 
@@ -120,56 +123,57 @@
   Couchbase will update the view after the stale result is returned. If stale=false is set, 
   Couchbase will refresh the view and return you most updated results.<quote>
 
-  https://forums.couchbase.com/t/how-does-stale-query-work/870
-  "
+  https://forums.couchbase.com/t/how-does-stale-query-work/870"
   [& args]
-  (let [  chan    (chan 5) 
-          config  (read-config "conf/app.edn") ]
+  (let [  ^clojure.core.async.impl.channels.ManyToManyChannel chan                  (chan 5) 
+          ^clojure.lang.PersistentHashMap                     config                (read-config "conf/app.edn") ]
     ;; INIT
-    (println "init :: start")
-    (println "checking config...")
+    (log/info "init :: start")
+    (log/info "checking config...")
     (cond 
       (contains? config :ok)
         (config-ok config)
       :else
         (config-err config))
-    ;; creating 10 async threads
-    (dotimes [i 10]
+    ;; Initializing CB connections
+    (let [  ^clojure.lang.PersistentHashMap           client-config         (get-in config [:ok :couchbase-client])
+            ^couchbase_clj.client.CouchbaseCljClient  client                (connect client-config)
+            ^clojure.lang.PersistentArrayMap          view-config           (get-in config [:ok :couchbase-view])
+            ^java.lang.String                         design-document-name  (:design-document-name view-config)
+            ^java.lang.String                         view-name             (:view-name view-config)
+            ^clojure.lang.PersistentHashMap           query-options         (:query-options view-config)
+            ^java.lang.Long                           batch-size            (:batch-size view-config)  ]
+    ;; (println (client/get-client-status client))
+    (log/info (client/get-available-servers client))
+    ;; creating N async threads
+    (dotimes [i 2]
       (thread
         ;; inside a thread we usually process something 
         ;; blocking like this thread sleeps for random(1000) ms
         ;; after the blocking part you send the message
         ;; :couchbase-client might be missing - should catch it here
-        (let [  ^clojure.lang.PersistentHashMap   client-config         (get-in config [:ok :couchbase-client])
-                client                                                (connect client-config)
-                ^clojure.lang.PersistentArrayMap  view-config                                           (get-in config [:ok :couchbase-view])
-                ^java.lang.String                 design-document-name  (:design-document-name view-config)
-                ^java.lang.String                 view-name             (:view-name view-config)
-                ^clojure.lang.PersistentHashMap   query-options         (:query-options view-config)
-                ^java.lang.Long                   batch-size            (:batch-size view-config) ]
-          (println (type client))
-          ;; connecting might be slow
-          (Thread/sleep 100)
-          ;; should be a check here if connection was successful 
-          ;; (cond ...
-          ;; "Lazy query can be used to get the amount of documents specified per iteration. 
-          ;; Communication between the client and Couchbase server will only occur per iteration.
-          ;; This is typically used to get a large data lazily."
-          ;; Example query-options
-          ;; {:include-docs true :desc false :startkey-doc-id :doc1 :endkey-doc-id :doc2
-          ;;   :group true :group-level 1 :inclusive-end false :key :key1 :limit 100 :range [:start-key :end-key]
-          ;;   :range-start :start-key2 :range-end :end-key2 :reduce false :skip 1 :stale false:on-error :continue}
-          (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
-            (let [ids (map client/view-id r)]
-              ;; delete all the keys, using the same connection as 
-              ;; for the read
-              (doall (pmap #(client/delete client %) ids))
-              ;; blocking producer should have a timeout here
-              (blocking-producer chan (str "ID: " (first ids) " Batch size: " batch-size))))
-            ;after we are done
-            (client/shutdown client))))
+        ;; connecting might be slow
+        (Thread/sleep 500)
+        ;; should be a check here if connection was successful 
+        ;; (cond ...
+        ;; "Lazy query can be used to get the amount of documents specified per iteration. 
+        ;; Communication between the client and Couchbase server will only occur per iteration.
+        ;; This is typically used to get a large data lazily."
+        ;; Example query-options
+        ;; {:include-docs true :desc false :startkey-doc-id :doc1 :endkey-doc-id :doc2
+        ;;   :group true :group-level 1 :inclusive-end false :key :key1 :limit 100 :range [:start-key :end-key]
+        ;;   :range-start :start-key2 :range-end :end-key2 :reduce false :skip 1 :stale false:on-error :continue}
+        (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
+          (let [ids (map client/view-id r)]
+            ;; delete all the keys, using the same connection as 
+            ;; for the read
+            (doall (pmap #(client/delete client %) ids))
+            ;; blocking producer should have a timeout here
+            (blocking-producer chan (str "ID: " (first ids) " Batch size: " batch-size))))
+          ;after we are done
+          (client/shutdown client))))
     ;; read while there is value
-    ;; or 
+    ;; or recur
     (while true 
       (blocking-consumer
         (go
@@ -179,7 +183,9 @@
             ;; and stop execution
             ;; production timeout should be like 1-3 mins
             (if (= source chan)
-              (println "Got a value!" result)
+              (log/info "Got a value!" result)
               ;else - timeout 
-              (exit 0))))))))
+              (do 
+                (log/info "Channel timed out. Stopping...") 
+                (exit 0)))))))))
 ;; END

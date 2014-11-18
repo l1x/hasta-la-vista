@@ -12,7 +12,8 @@
     [org.clojure/tools.logging    "0.2.6"]
     ;[com.google.guava/guava       "16.0" ]
     [org.clojure/data.json        "0.2.4"]
-    [couchbase-clj "0.2.0"]
+    [org.clojure/tools.logging    "0.3.1"]
+    [couchbase-clj                "0.2.0"]
   ]
   :exclusions [
     javax.mail/mail
