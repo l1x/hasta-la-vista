@@ -29,7 +29,14 @@ function (doc, meta) {
 
 ### Configure hasta-la-vista
 
-        cat conf/app.edn
+
+The create-client function[1] is called with the value of :couchbase-client.
+
+1. http://otabat.github.io/couchbase-clj/couchbase-clj.client.html#var-create-client
+
+The configuration file is located in conf/ folder called app.edn.
+
+Example:
 
 ```edn
 {
@@ -67,6 +74,12 @@ function (doc, meta) {
 
 
         java -jar hasta-la-vista-0.1.0-standalone.jar
+
+## TODO
+
+1. catch all exceptions in each thread and terminate gracefully
+2. expose more CLI options (config file's path, etc.)
+3. enable [Metrics](http://metrics-clojure.readthedocs.org/en/latest/)
 
 ## License
 

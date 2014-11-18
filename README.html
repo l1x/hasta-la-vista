@@ -69,8 +69,15 @@ create a view that has a warning in its name that the items in it are going to b
 
 <h3>Configure hasta-la-vista</h3>
 
-<pre><code>    cat conf/app.edn
-</code></pre>
+<p>The create-client function[1] is called with the value of :couchbase-client.</p>
+
+<ol class="task-list">
+<li><a href="http://otabat.github.io/couchbase-clj/couchbase-clj.client.html#var-create-client">http://otabat.github.io/couchbase-clj/couchbase-clj.client.html#var-create-client</a></li>
+</ol>
+
+<p>The configuration file is located in conf/ folder called app.edn.</p>
+
+<p>Example:</p>
 
 <div class="highlight highlight-edn"><pre>{
   :hasta-la-vista {
@@ -103,6 +110,18 @@ create a view that has a warning in its name that the items in it are going to b
 }</pre></div>
 
 <h3>Run the deletion</h3>
+
+<pre><code>    java -jar hasta-la-vista-0.1.0-standalone.jar
+</code></pre>
+
+<h2>TODO</h2>
+
+<ol class="task-list">
+<li>catch all exceptions in each thread and terminate gracefully</li>
+<li>expose more CLI options (config file's path, etc.)</li>
+<li>enable <a href="http://metrics-clojure.readthedocs.org/en/latest/">Metrics</a>
+</li>
+</ol>
 
 <h2>License</h2>
 
