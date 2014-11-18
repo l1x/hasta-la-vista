@@ -1,9 +1,14 @@
 {
-  :couchbase {
-    :bucket "delete-me"
+  :hasta-la-vista {
+    :thread-count 15
+  }
+  :couchbase-client {
+    :bucket "default"
     :uris [
-      "http://localhost:8091/pools"
-      "http://localhost:8091/pools"
+      "http://192.168.67.101:8091/pools"
+      "http://192.168.67.102:8091/pools"
+      "http://192.168.67.103:8091/pools"
+      "http://192.168.67.104:8091/pools"
      ]
     :op-timeout 100000
     :op-queue-max-block-time 30000
@@ -14,6 +19,12 @@
     :read-buffer-size 32768
     :should-optimize true
     :timeout-exception-threshold 100000
+  }
+  :couchbase-view {
+    :design-document-name "delete_all"
+    :view-name "delete-all"
+    :query-options {:include-docs true :stale false}
+    :batch-size 100
   }
 }
 
