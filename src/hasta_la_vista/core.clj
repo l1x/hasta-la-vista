@@ -125,8 +125,8 @@
 
   https://forums.couchbase.com/t/how-does-stale-query-work/870"
   [& args]
-  (let [  ^clojure.core.async.impl.channels.ManyToManyChannel chan                  (chan 5) 
-          ^clojure.lang.PersistentHashMap                     config                (read-config "conf/app.edn") ]
+  (let [  ^clojure.core.async.impl.channels.ManyToManyChannel chan    (chan 5) 
+          ^clojure.lang.PersistentHashMap                     config  (read-config "conf/app.edn") ]
     ;; INIT
     (log/info "init :: start")
     (log/info "checking config...")
@@ -146,11 +146,9 @@
                                                       thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
                                                       thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait]) ]
     (log/info (client/get-available-servers client))
-    (log/info "client-config" client-config "view-config" view-config)
     ;; creating N async threads
     (dotimes [i thread-count]
       (thread
-        (log/info "client-config" client-config "view-config" view-config)
         ;; inside a thread we usually process something 
         ;; blocking like this thread sleeps for random(1000) ms
         ;; after the blocking part you send the message
