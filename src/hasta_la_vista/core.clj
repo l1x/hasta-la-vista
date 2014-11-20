@@ -148,14 +148,14 @@
     ;; (println (client/get-client-status client))
     (log/info (client/get-available-servers client))
     ;; creating N async threads
-    (dotimes [i 2]
+    (dotimes [i thread-count]
       (thread
         ;; inside a thread we usually process something 
         ;; blocking like this thread sleeps for random(1000) ms
         ;; after the blocking part you send the message
         ;; :couchbase-client might be missing - should catch it here
         ;; connecting might be slow
-        (Thread/sleep 500)
+        (Thread/sleep thread-timeout)
         ;; should be a check here if connection was successful 
         ;; (cond ...
         ;; "Lazy query can be used to get the amount of documents specified per iteration. 
