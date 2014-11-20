@@ -1,6 +1,8 @@
 {
   :hasta-la-vista {
-    :thread-count 15
+    :thread-count 5
+    :thread-timeout 1000
+    :channel-timeout 5000
   }
   :couchbase-client {
     :bucket "default"

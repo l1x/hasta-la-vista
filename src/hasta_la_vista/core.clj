@@ -144,9 +144,7 @@
             ^clojure.lang.PersistentHashMap           query-options         (:query-options view-config)
             ^java.lang.Long                           batch-size            (:batch-size view-config)  
                                                       thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
-                                                      thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait])
-                                                      channel-timeout       (get-in config [:ok :hasta-la-vista :channel-timeout]) ]
-    ;; (println (client/get-client-status client))
+                                                      thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait]) ]
     (log/info (client/get-available-servers client))
     ;; creating N async threads
     (dotimes [i thread-count]
@@ -180,7 +178,8 @@
     (while true 
       (blocking-consumer
         (go
-          (let [[result source] (alts! [chan (timeout channel-timeout)])]
+          (let [ channel-timeout (get-in config [:ok :hasta-la-vista :channel-timeout])
+                 [result source] (alts! [chan (timeout channel-timeout)]) ]
             ;; if source is the channel than a value is returned in result
             ;; when the source is something else like timeout, we time out
             ;; and stop execution
