@@ -146,9 +146,11 @@
                                                       thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
                                                       thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait]) ]
     (log/info (client/get-available-servers client))
+    (log/info "client-config" client-config "view-config" view-config)
     ;; creating N async threads
     (dotimes [i thread-count]
       (thread
+        (log/info "client-config" client-config "view-config" view-config)
         ;; inside a thread we usually process something 
         ;; blocking like this thread sleeps for random(1000) ms
         ;; after the blocking part you send the message
