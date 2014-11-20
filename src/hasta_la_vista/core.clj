@@ -144,7 +144,8 @@
             ^clojure.lang.PersistentHashMap           query-options         (:query-options view-config)
             ^java.lang.Long                           batch-size            (:batch-size view-config)  
                                                       thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
-                                                      thread-timeout        (get-in config [:ok :hasta-la-vista :thread-timeout])]
+                                                      thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait])
+                                                      channel-timeout       (get-in config [:ok :hasta-la-vista :channel-timeout]) ]
     ;; (println (client/get-client-status client))
     (log/info (client/get-available-servers client))
     ;; creating N async threads
@@ -155,7 +156,7 @@
         ;; after the blocking part you send the message
         ;; :couchbase-client might be missing - should catch it here
         ;; connecting might be slow
-        (Thread/sleep thread-timeout)
+        (Thread/sleep thread-wait)
         ;; should be a check here if connection was successful 
         ;; (cond ...
         ;; "Lazy query can be used to get the amount of documents specified per iteration. 
@@ -179,7 +180,7 @@
     (while true 
       (blocking-consumer
         (go
-          (let [[result source] (alts! [chan (timeout 1500)])]
+          (let [[result source] (alts! [chan (timeout channel-timeout)])]
             ;; if source is the channel than a value is returned in result
             ;; when the source is something else like timeout, we time out
             ;; and stop execution
