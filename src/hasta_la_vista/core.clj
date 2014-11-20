@@ -142,7 +142,9 @@
             ^java.lang.String                         design-document-name  (:design-document-name view-config)
             ^java.lang.String                         view-name             (:view-name view-config)
             ^clojure.lang.PersistentHashMap           query-options         (:query-options view-config)
-            ^java.lang.Long                           batch-size            (:batch-size view-config)  ]
+            ^java.lang.Long                           batch-size            (:batch-size view-config)  
+                                                      thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
+                                                      thread-timeout        (get-in config [:ok :hasta-la-vista :thread-timeout])]
     ;; (println (client/get-client-status client))
     (log/info (client/get-available-servers client))
     ;; creating N async threads
