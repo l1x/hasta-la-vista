@@ -126,7 +126,7 @@
   
   There is a query parameter that can be passed: stale 
   <quote>If stale=ok is set, Couchbase will not refresh the view even if it 
-  is stale. The benefit of this   is a an improved query latency. If stale=update_after is set, 
+  is stale. The benefit of this is improved query latency. If stale=update_after is set, 
   Couchbase will update the view after the stale result is returned. If stale=false is set, 
   Couchbase will refresh the view and return you most updated results.<quote>
 
