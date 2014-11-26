@@ -25,7 +25,11 @@
     ;[narrator.query         :as narr-query  ]
     )
   (:import 
-    [java.io File])
+    [java.io File]
+    [java.util UUID]
+    [clojure.lang PersistentHashMap PersistentArrayMap]
+    [clojure.core.async.impl.channels ManyToManyChannel]
+    [couchbase_clj.client CouchbaseCljClient])
   (:gen-class))
 
 ;; HELPERS
@@ -77,7 +81,7 @@
 (defn uuid
   "Returns a new java.util.UUID as string" 
   []
-  (str (java.util.UUID/randomUUID)))
+  (str (UUID/randomUUID)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -93,7 +97,7 @@
 
 (defn exit [n] 
   (log/info "init :: stop")
-  (java.lang.System/exit n))
+  (System/exit n))
 
 ;; Getting better names for the async functions
 
@@ -131,9 +135,9 @@
 
   https://forums.couchbase.com/t/how-does-stale-query-work/870"
   [& args]
-  (let [  ^clojure.core.async.impl.channels.ManyToManyChannel stat-chan (chan)
-          ^clojure.core.async.impl.channels.ManyToManyChannel work-chan (chan)
-          ^clojure.lang.PersistentHashMap                     config    (read-config "conf/app.edn") ]
+  (let [  ^ManyToManyChannel stat-chan (chan)
+          ^ManyToManyChannel work-chan (chan)
+          ^PersistentHashMap config    (read-config "conf/app.edn") ]
     ;; INIT
     (log/info "init :: start")
     (log/info "checking config...")
@@ -143,16 +147,21 @@
       :else
         ;; exit 1 here
         (config-err config))
-    ;; Initializing CB connections
-    (let [  ^clojure.lang.PersistentHashMap           client-config         (get-in config [:ok :couchbase-client])
-            ^couchbase_clj.client.CouchbaseCljClient  client                (connect client-config)
-            ^clojure.lang.PersistentArrayMap          view-config           (get-in config [:ok :couchbase-view])
-            ^java.lang.String                         design-document-name  (:design-document-name view-config)
-            ^java.lang.String                         view-name             (:view-name view-config)
-            ^clojure.lang.PersistentHashMap           query-options         (:query-options view-config)
-            ^java.lang.Long                           batch-size            (:batch-size view-config)  
-            ^java.lang.Long                           thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
-            ^java.lang.Long                           thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait]) ]
+
+    ;; Initializing CB connections and everything
+    (let [  
+            ^ManyToManyChannel    stat-chan             (chan)
+            ^ManyToManyChannel    work-chan             (chan)
+            ^PersistentHashMap    client-config         (get-in config [:ok :couchbase-client])
+            ^CouchbaseCljClient   client                (connect client-config)
+            ^PersistentArrayMap   view-config           (get-in config [:ok :couchbase-view])
+            ^String               design-document-name  (:design-document-name view-config)
+            ^String               view-name             (:view-name view-config)
+            ^PersistentHashMap    query-options         (:query-options view-config)
+            ^Long                 batch-size            (:batch-size view-config)  
+            ^Long                 thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
+            ^Long                 thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait]) 
+                                                                                                              ]
 
       (log/info (client/get-available-servers client))
 
@@ -163,9 +172,9 @@
             (Thread/sleep thread-wait)
               (go-loop []
                 (let [  ids       (blocking-consumer work-chan) 
-                        start     (. java.lang.System (clojure.core/nanoTime)) 
+                        start     (. System (nanoTime)) 
                         _         (doall (pmap #(client/delete client-del %) ids))
-                        exec-time (with-precision 3 (/ (- (. java.lang.System (clojure.core/nanoTime)) start) 1000000.0))
+                        exec-time (with-precision 3 (/ (- (. System (nanoTime)) start) 1000000.0))
                         perf      (/ (count ids) exec-time) ]
                   ;; send results to stat-chan
                   (blocking-producer stat-chan {:thread-name (.getName (Thread/currentThread)) :first_id (first ids) :time exec-time :perf perf})
