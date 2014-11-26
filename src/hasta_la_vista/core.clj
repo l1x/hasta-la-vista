@@ -156,9 +156,10 @@
             ^String               view-name             (:view-name view-config)
             ^PersistentHashMap    query-options         (:query-options view-config)
             ^Long                 batch-size            (:batch-size view-config)  
-            ^Long                 thread-count          (get-in config [:ok :hasta-la-vista :thread-count])
-            ^Long                 thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait]) 
-                                                                                                              ]
+            ^Long                 thread-count          (get-in config [:ok :hasta-la-vista :thread-count     ])
+            ^Long                 thread-wait           (get-in config [:ok :hasta-la-vista :thread-wait      ]) 
+            ^Long                 channel-timeout       (get-in config [:ok :hasta-la-vista :channel-timeout  ]) 
+                                                                                                                  ]
 
       (log/info (client/get-available-servers client))
 
@@ -170,7 +171,7 @@
               (go-loop []
                 (let [  ids       (blocking-consumer work-chan) 
                         start     (. System (nanoTime)) 
-                        _         (doall (pmap #(client/delete client-del %) ids))
+                        _         (doseq [id ids] (client/delete client-del id))
                         exec-time (with-precision 3 (/ (- (. System (nanoTime)) start) 1000000.0))
                         perf      (/ (count ids) exec-time) ]
                   ;; send results to stat-chan
@@ -190,9 +191,18 @@
         (let [ids (map client/view-id r)]
           (blocking-producer work-chan ids)))
 
-      ;; shutting down the client & the main thread
-      (client/shutdown client)
-      (exit 0)
+      ;; wait till the last message is read 
+      (while true 
+        (blocking-consumer
+          (go
+            (let [[result source] (alts! [stat-chan (timeout channel-timeout)])]
+              (if (= source stat-chan)
+                (log/info result)
+                ;else - timeout 
+                (do 
+                  (log/info "Channel timed out. Stopping...") 
+                  (client/shutdown client)
+                  (exit 0)))))))
 
     ;; end main
     )))
