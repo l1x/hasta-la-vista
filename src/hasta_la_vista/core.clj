@@ -107,9 +107,6 @@
 (def non-blocking-producer >!)
 (def non-blocking-consumer <!)
 
-
-(defn process-message [message] (log/info "Got a message!" message))
-
 (defn config-ok [config]
   (log/info "config [ok]") 
   (log/info config))
@@ -168,7 +165,7 @@
       ;; creating N async threads
       (dotimes [i thread-count]
         (thread
-          (let [ ^couchbase_clj.client.CouchbaseCljClient  client-del (connect client-config) ]
+          (let [ ^CouchbaseCljClient  client-del (connect client-config) ]
             (Thread/sleep thread-wait)
               (go-loop []
                 (let [  ids       (blocking-consumer work-chan) 
@@ -177,11 +174,16 @@
                         exec-time (with-precision 3 (/ (- (. System (nanoTime)) start) 1000000.0))
                         perf      (/ (count ids) exec-time) ]
                   ;; send results to stat-chan
-                  (blocking-producer stat-chan {:thread-name (.getName (Thread/currentThread)) :first_id (first ids) :time exec-time :perf perf})
+                  (blocking-producer 
+                    stat-chan 
+                    {:thread-name (.getName (Thread/currentThread)) :first_id (first ids) :time exec-time :perf perf})
                   (recur))))))
 
       ;; reading stat-chan
-      (thread (go-loop [] (let [stat (blocking-consumer stat-chan)] (log/info stat)) (recur)))
+      (thread 
+        (go-loop [] 
+          (let [stat (blocking-consumer stat-chan)] (log/info stat)) 
+          (recur)))
 
       ;; send in all of the ids batch-size amount a time
       (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
