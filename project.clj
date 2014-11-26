@@ -14,7 +14,7 @@
     [org.clojure/data.json        "0.2.4"]
     [org.clojure/tools.logging    "0.3.1"]
     [couchbase-clj                "0.2.0"]
-    [narrator                     "0.1.2"]
+    ;[narrator                     "0.1.2"]
   ]
   :exclusions [
     javax.mail/mail
