@@ -180,18 +180,14 @@
                     {:thread-name (.getName (Thread/currentThread)) :first_id (first ids) :time exec-time :perf perf})
                   (recur))))))
 
-      ;; reading stat-chan
-      (thread 
-        (go-loop [] 
-          (let [stat (blocking-consumer stat-chan)] (log/info stat)) 
-          (recur)))
-
       ;; send in all of the ids batch-size amount a time
-      (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
-        (let [ids (map client/view-id r)]
-          (blocking-producer work-chan ids)))
+      (thread
+        (Thread/sleep 100)
+        (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
+          (let [ids (map client/view-id r)]
+            (blocking-producer work-chan ids))))
 
-      ;; wait till the last message is read 
+      ;; wait till the last message is read in the main thread
       (while true 
         (blocking-consumer
           (go
