@@ -21,8 +21,8 @@
     [couchbase-clj.client   :as client      ]
     [couchbase-clj.query    :as query       ]
     [clojure.tools.logging  :as log         ]
-    [narrator.operators     :as narr-ops    ]
-    [narrator.query         :as narr-query  ]
+    ;[narrator.operators     :as narr-ops    ]
+    ;[narrator.query         :as narr-query  ]
     )
   (:import 
     [java.io File])
@@ -115,6 +115,8 @@
   (log/error config)
   (exit 1))
 
+;; MAIN
+
 (defn -main
   "This is the main entry point when you start up the JAR
   parses the config, starts up the connections in each thread 
@@ -129,8 +131,8 @@
 
   https://forums.couchbase.com/t/how-does-stale-query-work/870"
   [& args]
-  (let [  ^clojure.core.async.impl.channels.ManyToManyChannel chan      (chan) 
-          ^clojure.core.async.impl.channels.ManyToManyChannel chan-stat (chan)
+  (let [  ^clojure.core.async.impl.channels.ManyToManyChannel stat-chan (chan)
+          ^clojure.core.async.impl.channels.ManyToManyChannel work-chan (chan)
           ^clojure.lang.PersistentHashMap                     config    (read-config "conf/app.edn") ]
     ;; INIT
     (log/info "init :: start")
@@ -160,62 +162,28 @@
           (let [ ^couchbase_clj.client.CouchbaseCljClient  client-del (connect client-config) ]
             (Thread/sleep thread-wait)
               (go-loop []
-                (let [ids (blocking-consumer chan)]
-                  (blocking-producer chan-stat {:thread-name (.getName (Thread/currentThread)) :first_id (first ids)})
-                  (doall (pmap #(client/delete client-del %) ids)))
-                  (recur)))))
+                (let [  ids       (blocking-consumer work-chan) 
+                        start     (. java.lang.System (clojure.core/nanoTime)) 
+                        _         (doall (pmap #(client/delete client-del %) ids))
+                        exec-time (with-precision 3 (/ (- (. java.lang.System (clojure.core/nanoTime)) start) 1000000.0))
+                        perf      (/ (count ids) exec-time) ]
+                  ;; send results to stat-chan
+                  (blocking-producer stat-chan {:thread-name (.getName (Thread/currentThread)) :first_id (first ids) :time exec-time :perf perf})
+                  (recur))))))
 
-      ;; reading chan-stat
-      (thread
-        (go-loop []
-          (let [message (blocking-consumer chan-stat)]
-            (log/info message))
-            (recur)))
+      ;; reading stat-chan
+      (thread (go-loop [] (let [stat (blocking-consumer stat-chan)] (log/info stat)) (recur)))
 
       ;; send in all of the ids batch-size amount a time
       (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
         (let [ids (map client/view-id r)]
-          (blocking-producer chan ids)))
+          (blocking-producer work-chan ids)))
 
-    ;; shutting down the client & the main thread
+      ;; shutting down the client & the main thread
       (client/shutdown client)
       (exit 0)
 
     ;; end main
     )))
 
-
-
-        ;(doall (pmap #(client/delete client %) ids))
-        ;(blocking-producer chan (str "ID: " (first ids) " Batch size: " batch-size))))
-
-
-;   (dotimes [i thread-count]
-;     (thread
-;       (Thread/sleep thread-wait)
-;       ;; "Lazy query can be used to get the amount of documents specified per iteration. 
-;       ;; Communication between the client and Couchbase server will only occur per iteration.
-;       ;; This is typically used to get a large data lazily."
-;       ;; Example query-options
-;       ;; {:include-docs true :desc false :startkey-doc-id :doc1 :endkey-doc-id :doc2
-;       ;;   :group true :group-level 1 :inclusive-end false :key :key1 :limit 100 :range [:start-key :end-key]
-;       ;;   :range-start :start-key2 :range-end :end-key2 :reduce false :skip 1 :stale false:on-error :continue}
-
-;       (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
-;         (let [ids (map client/view-id r)]
-;           (doall (pmap #(client/delete client %) ids))
-;           (blocking-producer chan (str "ID: " (first ids) " Batch size: " batch-size))))
-;         (client/shutdown client))))
-
-;   (while true 
-;     (blocking-consumer
-;       (go
-;         (let [ channel-timeout (get-in config [:ok :hasta-la-vista :channel-timeout])
-;                [result source] (alts! [chan (timeout channel-timeout)]) ]
-;           (if (= source chan)
-;             (log/info "Got a value!" result)
-;             ;else - timeout 
-;             (do 
-;               (log/info "Channel timed out. Stopping...") 
-;               (exit 0)))))))))
-;; END
+;;END
