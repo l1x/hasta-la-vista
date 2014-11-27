@@ -173,7 +173,7 @@
                         start     (. System (nanoTime)) 
                         _         (doseq [id ids] (client/delete client-del id))
                         exec-time (with-precision 3 (/ (- (. System (nanoTime)) start) 1000000.0))
-                        perf      (/ (count ids) exec-time) ]
+                        perf      (with-precision 3 (/ (count ids) exec-time)) ]
                   ;; send results to stat-chan
                   (blocking-producer 
                     stat-chan 
