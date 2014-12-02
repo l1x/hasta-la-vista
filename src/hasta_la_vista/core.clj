@@ -171,7 +171,7 @@
               (go-loop []
                 (let [  ids       (blocking-consumer work-chan) 
                         start     (. System (nanoTime)) 
-                        _         (doseq [id ids] (client/delete client-del id))
+                        _         (doall (pmap #(client/delete client-del %) ids))
                         exec-time (with-precision 3 (/ (- (. System (nanoTime)) start) 1000000.0))
                         perf      (with-precision 3 (/ (count ids) exec-time)) ]
                   ;; send results to stat-chan
