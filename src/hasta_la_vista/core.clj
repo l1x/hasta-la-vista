@@ -95,6 +95,17 @@
   ;return
   client-connection)
 
+(defn get-batch 
+  [client-conn design-document-name view-name query-options batch-size]
+  (client/lazy-query client-conn design-document-name view-name query-options batch-size))
+
+(defn get-ids
+  [batch]
+  (try 
+    {:ok (doall (map client/view-id batch)) } 
+  (catch Exception e 
+    {:error "Exception" :fn "get-ids" :exception (.getMessage e) })))
+
 (defn exit [n] 
   (log/info "init :: stop")
   (System/exit n))
@@ -150,7 +161,7 @@
             ^ManyToManyChannel    stat-chan             (chan)
             ^ManyToManyChannel    work-chan             (chan)
             ^PersistentHashMap    client-config         (get-in config [:ok :couchbase-client])
-            ^CouchbaseCljClient   client                (connect client-config)
+            ^CouchbaseCljClient   client-conn           (connect client-config)
             ^PersistentArrayMap   view-config           (get-in config [:ok :couchbase-view])
             ^String               design-document-name  (:design-document-name view-config)
             ^String               view-name             (:view-name view-config)
@@ -161,7 +172,7 @@
             ^Long                 channel-timeout       (get-in config [:ok :hasta-la-vista :channel-timeout  ]) 
                                                                                                                   ]
 
-      (log/info (client/get-available-servers client))
+      (log/info (client/get-available-servers client-conn))
 
       ;; creating N async threads
       (dotimes [i thread-count]
@@ -183,9 +194,15 @@
       ;; send in all of the ids batch-size amount a time
       (thread
         (Thread/sleep 100)
-        (doseq [r (client/lazy-query client design-document-name view-name query-options batch-size)]
-          (let [ids (map client/view-id r)]
-            (blocking-producer work-chan ids))))
+        (doseq [batch (get-batch client-conn design-document-name view-name query-options batch-size)]
+          (let [ids (get-ids batch)]
+            (cond
+              (:ok ids)
+                (blocking-producer work-chan (:ok ids))
+              (:error ids)
+                (log/error (:error ids))
+              :else
+                (log/error "Neither ok nor error??")))))
 
       ;; wait till the last message is read in the main thread
       (while true 
@@ -197,7 +214,7 @@
                 ;else - timeout 
                 (do 
                   (log/info "Channel timed out. Stopping...") 
-                  (client/shutdown client)
+                  (client/shutdown client-conn)
                   (exit 0)))))))
 
     ;; end main
