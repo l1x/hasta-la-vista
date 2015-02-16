@@ -143,9 +143,7 @@
 
   https://forums.couchbase.com/t/how-does-stale-query-work/870"
   [& args]
-  (let [  ^ManyToManyChannel stat-chan (chan)
-          ^ManyToManyChannel work-chan (chan)
-          ^PersistentHashMap config    (read-config "conf/app.edn") ]
+  (let [ ^PersistentHashMap config    (read-config "conf/app.edn") ]
     ;; INIT
     (log/info "init :: start")
     (log/info "checking config...")
